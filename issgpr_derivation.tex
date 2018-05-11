@@ -1,7 +1,3 @@
-%TODO
-% What is the largest torso perturbation variance you can handle? 
-% What happens to performance on the unperturbed case?
-
 \documentclass[a4paper]{article}
 
 %% Language and font encodings
@@ -32,17 +28,19 @@
 
 % \setcounter{section}{1} %start at section 2, to match handout
 
-\title{Linear regression to Gaussian Process regression to I-SSGPR}
+\title{Gaussian Process notes}
 \author{Kazuya Otani}
 
 \begin{document}
 \maketitle
 
+\section{Linear regression to GP regression to I-SSGPR}
+
 Derivation and notes for "Real-time model learning using Incremental Sparse Spectrum Gaussian Process Regression", Arjan Gijsberts and Giorgio Metta, 2012.
 
 Mostly just following the explanations in the paper, with additional calculation steps and commentary in between equations.
 
-\section*{To-do}
+\subsection*{To-do}
 
 \begin{itemize}
 	\item automatic relevance detection
@@ -52,7 +50,7 @@ Mostly just following the explanations in the paper, with additional calculation
     \item Finish some derivations 
 \end{itemize}
 
-\section{Linear regression}
+\subsection{Linear regression}
 
 Given examples $(x,y)$
 
@@ -81,7 +79,7 @@ A = (X^T X)^{-1} X^T Y
 
 $(X^T X)^{-1} X^T$ is the Moore-Penrose pseudo-inverse. 
 
-\section{Bayesian Linear Regression}
+\subsection{Bayesian Linear Regression}
 
 On top of linear regression, make two assumptions: 
 
@@ -115,7 +113,7 @@ p(w|Y; X, \sigma^2) &\propto \exp \left(-\frac{1}{2\sigma^2} ||y-Xw||^2 - \frac{
 
 Note that this is equivalent to regularized linear regression. Regularization aka weight decay is the result of placing a zero-mean prior on the model weights! 
 
-\section{Non-linear mappings}
+\subsection{Non-linear mappings}
 
 To extend this framework to non-linear features, replace $X$ with $\Phi(X)$. For a prediction of $y$ at $x$: 
 
@@ -124,7 +122,7 @@ $$A = \phi(X)^T \phi(X) + \sigma_n^2 \Sigma_p^{-1}$$
 
 Here, $A \in R^{n \times n}$. The most expensive step in inference is inverting $A$, which is $O(n^3)$. 
 
-\section{Kernel trick}
+\subsection{Kernel trick}
 
 The kernel trick makes use of the fact that the non-linear mapping $\phi(X)$ only appears in the inference equations as inner products: e.g. $\phi(x)^T A^{-1}\phi(x)$ and $\phi(X)^T \phi(X)$. 
 
@@ -146,7 +144,7 @@ Here, $G \in R^{m \times m}$, and the most expensive step is in inverting $G$, w
 
 The RBF / squared exponential function is infinite-dimensional because in order to write it in a form $\phi(X)^T \phi(X)$ (inner product between two vectors, i.e. linear), we would have to take an infinitely long Taylor series. Details \href{https://math.stackexchange.com/questions/1606110/what-is-an-example-of-a-svm-kernel-where-one-implicitly-uses-an-infinity-dimens/1620256#1620256}{here}.
 
-\section{Incremental updates}
+\subsection{Incremental updates}
 
 Assume we have a finite-dimensional kernel function. In this case, if $m>>n$ (i.e. number of examples is much larger than dimensionality of training examples), it may be better to ditch the kernel function and compute the projections $\phi(X)$ directly. Here, we will derive an incremental method for computing the $A,b$ matrices
 
@@ -181,7 +179,7 @@ A_t &= \begin{bmatrix} \phi(X_{t-1}) & \phi(x_t) \end{bmatrix} \begin{bmatrix} \
 b_t &= \phi(X_t)^T Y_t  \\
 &= \begin{bmatrix} \phi(X_{t-1}) & \phi(x_t)) \end{bmatrix} \begin{bmatrix} Y_{t-1}\\ y_t \end{bmatrix} \\
 &- \phi(X_{t-1})^T Y_{t-1} + \phi(x_t)^T y_t \\
-&= b_{t-1} + \phi(x_t)^t y_t
+&= b_{t-1} + \phi(x_t)^T y_t
 \end{align*}
 
 Thus, the updates to both $A$ and $b$ are rank-one updates. Set $A_0 = \sigma_n^2 \Sigma_p^{-1}, b_0=0$. 
@@ -214,9 +212,9 @@ A^{-1} v \rightarrow R^{-1}R^{-T} v
 A &=R^T R \\
 A_t &= R_t^T R_t \\
 &= A_{t-1} + \phi(x_t)^T \phi(x_t) \\
-&= R_{t-1}^T R_{t-1} + \phi(x_t)^T \phi(x_t)
-R_t^T R_t &= \tilde{R}_t^T \tilde{R}_t \\
-\tilde{R}_t &= \begin{bmatrix}R_{t-1} \phi(x_t) \end{bmatrix}
+&= R_{t-1}^T R_{t-1} + \phi(x_t)^T \phi(x_t) \\ 
+% R_t^T R_t &= \tilde{R}_t^T \tilde{R}_t \\
+\tilde{R}_t &= \begin{bmatrix}R_{t-1} & \phi(x_t) \end{bmatrix}
 \end{align*}
 
 We want to transform: 
@@ -239,7 +237,7 @@ The main intuitive difference between Givens rotations and Householder reflectio
 
 \textbf{TODO}: Figure out how exactly to zero out entire row with Givens rotations. My current implementation just uses built-in QR factorization.
 
-\subsubsection*{Results}
+\subsection{Results}
 
 By incrementally updating the Cholesky factor of $A$, we get the most expensive step down to complexity $O(n^2)$, where $n$ is dimensionality of non-linear mapping. This means we can compute an exact Gaussian Process Regression in $O(mn^2)$! But this is assuming that we have a finite-dimensional kernel, which is not the case for the most popular kernel function: RBF / squared exponential:
 
@@ -247,7 +245,7 @@ $$k(x_i, x_j) = \sigma_f^2 \exp(-\frac{1}{2}(x_i-x_j)^T M (x_i-x_j))$$
 
 where $M$ is a diagonal matrix with $M_{ii}=l_i^{-2}$ (length scales). We can deal with this with a finite-dimensional approximation.
 
-\section{Approximating RBF kernel}
+\subsection{Approximating RBF kernel}
 
 "The feature mapping for the popular RBF kernel is infinite-dimensional and thus cannot be explicitly computed. Rahimi and Recht
 (2008a), however, demonstrate that the RBF and other shift 
@@ -268,7 +266,7 @@ The random feature mapping $\phi(X)$ that corresponds to the RBF kernel is shown
 
 \textbf{TODO}: Put phi equation for rbf here. How are length scales computed?
 
-\section{Comparison to other GP extensions}
+\subsection*{Comparison to other GP extensions}
 
 Two methods cited at bottom of Black-DROPS paper:
 
@@ -287,7 +285,9 @@ Two methods cited at bottom of Black-DROPS paper:
 
 \end{itemize}
 
-Note that both of these methods seem to be focused on batch training, instead of incremental. It seems intuitive that incremental updates would be more efficient, if a formulation is possible. 
+Local GPs are sparsification/parallelization.
+
+Note that both of these methods do batch training, instead of incremental. It seems intuitive that incremental updates would be more efficient, if a formulation is possible. 
 
 EPC uses Locally Weighted Projection Regression - why? They note that LWPR is $O(dim(z))$, where $z$ is input dimensionality?? 
 
@@ -295,11 +295,95 @@ The I-SSGPR paper shows that it is both faster and learns faster/better than LWP
 
 "Although LWPR can more accurately represent accumulated experiences via its local models, we also consider ISSGPR due to its potential for faster model adaptation."
 
+Simple sparsification scheme that works well in practice, from Limbo: \href{https://github.com/resibots/limbo/blob/master/src/limbo/model/sparsified_gp.hpp}{sparsified_gp} (\href{notes are from here}{https://github.com/resibots/limbo/pull/254}. Basic idea is to set a maximum number of training samples, then selectively remove samples when that maximum number is exceeded. Samples are removed in order of "density", which can be measured as the sum of the euclidean distances between a sample and its $D$ closest neighbors. We assume that functions are smoothed and can be modeled by evenly spaced points. Note: this method does not take into account variation in observations. 
+
+\section{Misc notes}
+
+\subsection{Automatic Relevance Detection}
+
+Automatic relevance detection refers to kernels that have (hyper) parameters in them that can be optimized to maximize a metric of model fit. The most commonly used one is the squared exponential kernel with automatic relevance detection (see Rasmussen chapter 5). 
+
+$$k(x_p, x_q) = \sigma_f^2 \exp(-\frac{1}{2} (x_p - x_q)^T M (x_p - x_q) ) + \sigma_n^2 \delta_{pq} \\$$
+$$M_1 = \ell^{-2} I, M_2 = \text{diag}(\mathbf{\ell})^{-2}, M_3 = \Lambda \Lambda^T + \text{diag}(\ell)^{-2}, \hspace{0.5mm} \text{where} \hspace{1mm} \Lambda \in R^{D\times k}, k<D$$
+
+$M_1, M_2, M_3$ are options with increasing expressiveness/adjustability. For equations below we'll just call all optimizable parameters $\theta$. 
+
+We want to maximize the probability of data $y$ given hyperparameters $\theta$: 
+
+$$ \log p(y | X, \theta) = -\frac{1}{2} y^T K_y ^{-1} y - \frac{1}{2} \log |K_y| \frac{n}{2} \log 2\pi$$
+
+\textbf{TODO where this equation comes from}
+
+First term is data fit (note that this is the only term with $y$ in it), second term is a complexity penalty, third term is normalization constant. 
+
+We can take the derivative of this with respect to $\theta$: 
+
+\begin{align*}
+\frac{\partial}{\partial \theta} \log p(y | X, \theta) &= \frac{1}{2} y^T K^{-1} \frac{\partial K}{\partial \theta} K^{-1}y - \frac{1}{2} \text{tr}(K^{-1} \frac{\partial K}{\partial \theta}) \\
+&= \frac{1}{2} \text{tr}\left( (\alpha \alpha^T - K^{-1})  \frac{\partial K}{\partial \theta} \right), \alpha = K^{-1}y
+\end{align*}
+
+\textbf{TODO figure out how to get to second line here}
+
+Using this derivative, we can just run any gradient-based optimization algorithm (e.g. SGD, RProp). Local minima do exist, but in practice are not too much of a problem, and each minimum corresponds to a specific fit-complexity tradeoff.
+
+$\text{tr}(A)=\sum_{i=1}^n a_{ii}$ - the sum of elements on main diagonal on a square matrix. This also corresponds to the sum of the eigenvalues!
+
+Some matrix derivatives used for this: 
+
+\begin{align*}
+\frac{\partial}{\partial \theta} K^{-1} &= -K^{-1} \frac{\partial K}{\partial \theta} K^{-1} \\
+\frac{\partial}{\partial \theta} \log |K| &= \text{tr}(K^{-1} \frac{\partial K}{\partial \theta})
+\end{align*}
+
+Derivative of the kernel matrix $K$ is pretty straightforward. Example for simple squared exponential below: 
+
+\begin{align*}
+K(x_p, x_q) &= \sigma_f^2 \exp(-\frac{1}{2} (x_p - x_q)^T \text{diag}(\mathbf{\ell})^{-2} (x_p - x_q) ) \\
+\frac{\partial K}{\partial \sigma_f} &= 2 \sigma_f \exp\left(-\frac{1}{2} (x_p - x_q)^T \text{diag}(\mathbf{\ell})^{-2} (x_p - x_q) \right) \\
+\frac{\partial K}{\partial \ell} &= - \frac{1}{2} \sigma_f^2 (x_p - x_q)^T \text{diag}(\mathbf{\ell})^{-2} (x_p - x_q) \exp\left(-\frac{1}{2} (x_p - x_q)^T \text{diag}(\mathbf{\ell})^{-2} (x_p - x_q) \right)
+\end{align*}
+
+\subsubsection*{Calculating logdet term}
+
+Cool trick for calculating the $\log |K_y|$ term in the likelihood, from Limbo. $\text{logdet}(A)$ is often more numerically stable than $\log \text{det} (A)$. 
+
+Using these properties: $A = LL^T$, $\text{det}(L) = \prod_i L_{ii}$ (determinant of lower triangular matrix), $\log \prod_i x_i = \sum \log x_i$ (log rule)
+
+$$A = LL^T \rightarrow \text{logdet}(A) = 2 \sum \log \text{diag}(L)$$
+
 % \begin{minipage}{\linewidth}
 %   \centering
 %   \includegraphics[width=6cm]{figures/figure_name.png}
 %   \captionof{figure}{Caption}
 % \end{minipage}
+
+\section{References}
+
+\begin{itemize}
+	\item \href{http://www.gaussianprocess.org/gpml/}{Gaussian Processes for Machine Learning (book), Rasmussen and Williams}
+	\item https://www.youtube.com/playlist?list=PLD0F06AA0D2E8FFBA 
+	\item Machine learning summer school: lectures on GPs. \href{https://www.video.ethz.ch/conferences/2014/rnls/05_thursday/0f8953ea-b1fe-4960-8fa1-ef71bb642445.html}{Video 1} %, \href{Video 2}{https://www.youtube.com/watch?v=50Vgw11qn0o} 
+	\item More lectures: https://www.youtube.com/watch?v=vz3D36VXefI
+	\item \href{https://github.com/resibots/limbo}{Limbo}: library for GPs
+\end{itemize}
+
+Papers:
+
+\begin{itemize}
+	\item Gijsberts, Arjan, and Giorgio Metta. "Real-time model learning using incremental sparse spectrum gaussian process regression." Neural Networks 41 (2013): 59-69.
+	\item Chatzilygeroudis, Konstantinos, et al. "Black-box data-efficient policy search for robotics." Intelligent Robots and Systems (IROS), 2017 IEEE/RSJ International Conference on. IEEE, 2017.
+	\item https://sites.google.com/site/dataefficientml/home
+\end{itemize}
+
+Tutorials
+
+\begin{itemize}
+	\item http://willwolf.io/2018/03/31/gaussian-algebra-to-gaussian-processes-part-1/
+	\item https://gist.github.com/Bridgo/429594942ff51037ecc703905e40c562
+	\item http://bridg.land/posts/gaussian-processes-1
+	\item http://efavdb.com/gaussian-processes/
+\end{itemize}
 
 % \todo[inline]{notes}
 
